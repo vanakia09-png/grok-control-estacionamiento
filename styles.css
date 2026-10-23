@@ -33,3 +33,4 @@ td input.nota,dd input.nota{width:100%;min-width:170px;min-height:36px;padding:5
 .seg button{background:#fff}.seg button.on{background:var(--azul)}
 
 button.coral{background:var(--coral);border-color:#E7A99B}.coralbox{background:#FFF4F1;border:1px solid #F3C2B6;border-radius:10px}dialog.coralbox{max-width:560px;padding:18px;color:var(--txt)}dialog::backdrop{background:rgba(31,42,55,.4)}
+.big .tot{font-size:40px;font-weight:800;margin-left:6px}.big .split{display:flex;gap:28px;margin-top:6px}.big .sl{font-size:18px;font-weight:700}
