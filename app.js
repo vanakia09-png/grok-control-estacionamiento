@@ -25,7 +25,8 @@ function initDb() {
 }
 let db;
 try { const r = localStorage.getItem(KEY); db = r ? JSON.parse(r) : initDb(); } catch (e) { db = initDb(); }
-if (!db.drivers) db.drivers = initDb().drivers; db.movs ||= []; db.bicis ||= []; db.biciNotas ||= {};
+if (!db.drivers) db.drivers = initDb().drivers; db.movs ||= []; db.bicis ||= []; db.biciNotas ||= {}; db.ciclistas ||= {};
+db.bicis.forEach(b => { const k = bkey(b.nombre, b.color); db.ciclistas[k] ||= { nombre: b.nombre, color: b.color }; });
 // migración v2: tickets sin letra -> Servicio (S), sin perder accesos
 if (db.ver !== 2) {
   const mig = [], nd = {};
@@ -75,7 +76,21 @@ function fichaTicket(t, editable) {
   return html + histTable(h);
 }
 
-let gSel = "", filtro = "todos", fTipo = "todos";
+let gSel = "", filtro = "todos", fTipo = "todos", bFiltro = "mov", bHist = "";
+function renderBicis(acc, ult) {
+  const rows = [];
+  Object.entries(db.ciclistas).forEach(([k, c]) => { const bs = db.bicis.filter(b => bkey(b.nombre, b.color) === k);
+    rows.push({ id: "b:" + k, tipo: "Sin ticket", nombre: c.nombre, color: c.color, kind: "b", nid: k, notas: db.biciNotas[k] || "", hist: bs, last: bs[bs.length - 1] }); });
+  tk().filter(t => isBici(db.drivers[t].vehiculo)).forEach(t => { const d = db.drivers[t], h = acc.filter(a => a.t === t);
+    rows.push({ id: "t:" + t, tipo: "Ticket " + t, nombre: d.nombre, color: d.vehiculo, kind: "t", nid: t, notas: d.notas || "", hist: h, last: h[h.length - 1] }); });
+  rows.forEach(r => r.dn = !!r.last && r.last.sal === null);
+  const n = { mov: rows.filter(r => r.last).length, dentro: rows.filter(r => r.dn).length };
+  $("bseg").innerHTML = [["mov", "Con movimiento (" + n.mov + ")"], ["dentro", "Dentro (" + n.dentro + ")"], ["fuera", "Fuera"], ["todos", "Todos (" + rows.length + ")"]].map(([v, l]) => `<button data-bf="${v}" class="${bFiltro === v ? "on" : ""}">${l}</button>`).join("");
+  const q = $("bq").value.trim().toLowerCase();
+  const vis = rows.filter(r => (bFiltro === "todos" || (bFiltro === "mov" && r.last) || (bFiltro === "dentro" && r.dn) || (bFiltro === "fuera" && !r.dn)) && (!q || (r.tipo + " " + r.nombre + " " + r.color + " " + r.notas).toLowerCase().includes(q)));
+  if ($("blista").contains(document.activeElement)) return;
+  $("blista").innerHTML = vis.length ? `<table><tr><th>Ticket</th><th>Nombre</th><th>Bicicleta / color</th><th>Estado</th><th>Hora de entrada (CDMX)</th><th>Hora de salida (CDMX)</th><th>Notas</th><th>Historial</th></tr>${vis.map(r => `<tr><td>${esc(r.tipo)}</td><td>${esc(r.nombre) || "—"}</td><td>${esc(r.color) || "—"}</td><td>${estadoHtml(r.dn)}</td><td>${r.last ? fmt(r.last.ent) : "—"}</td><td>${!r.last ? "—" : r.dn ? '<span class="ok">Dentro</span>' : fmt(r.last.sal)}</td><td>${notaInput(r.kind, r.nid, r.notas)}</td><td><button data-bh="${esc(r.id)}">${bHist === r.id ? "Ocultar" : "Ver"} (${r.hist.length})</button></td></tr>${bHist === r.id ? `<tr><td colspan="8">${histTable(r.hist.slice().reverse())}</td></tr>` : ""}`).join("")}</table>` : "<p>Sin bicicletas en este filtro.</p>";
+}
 function render() {
   const acc = accesos(), now = Date.now();
   const tDentro = tk().filter(dentro).length, bDentro = db.bicis.filter(b => b.sal === null);
@@ -98,14 +113,15 @@ function render() {
     else if (/^\d+$/.test(gn)) ambos(gn).forEach(t => res.push(["t:" + t, "Ticket " + t + " (" + tipoDe(t) + ")", db.drivers[t]]));
     else {
       tk().forEach(t => { const d = db.drivers[t]; if ((d.nombre + " " + d.notas + " " + d.placa).toLowerCase().includes(gn)) res.push(["t:" + t, "Ticket " + t, d]); });
-      const seen = new Set(); db.bicis.forEach(b => { const k = bkey(b.nombre, b.color); const n = db.biciNotas[k] || ""; if (!seen.has(k) && (b.nombre + " " + n).toLowerCase().includes(gn)) { seen.add(k); res.push(["b:" + k, "Ciclista", { nombre: b.nombre, vehiculo: "bici " + b.color, notas: n }]); } });
+      Object.entries(db.ciclistas).forEach(([k, b]) => { const n = db.biciNotas[k] || ""; if ((b.nombre + " " + b.color + " " + n).toLowerCase().includes(gn)) res.push(["b:" + k, "Ciclista", { nombre: b.nombre, vehiculo: "bici " + b.color, notas: n }]); });
     }
   }
   $("gres").innerHTML = gSel ? "" : res.slice(0, 20).map(([id, l, d]) => `<button class="res" data-sel="${esc(id)}">${esc(l)}${d.nombre ? " · " + esc(d.nombre) : ""}${d.vehiculo ? " · " + esc(d.vehiculo) : ""}${d.notas ? " · Notas: " + esc(d.notas) : ""}</button>`).join("") || (gn ? "<p>Sin coincidencias.</p>" : "");
   if (gSel.startsWith("t:")) $("gsel").innerHTML = fichaTicket(gSel.slice(2), false);
   else if (gSel.startsWith("b:")) {
     const k = gSel.slice(2), bs = db.bicis.filter(b => bkey(b.nombre, b.color) === k).reverse();
-    $("gsel").innerHTML = bs.length ? `<dl class="props"><dt>Ciclista (sin ticket)</dt><dd>${esc(bs[0].nombre)}</dd><dt>Color de la bicicleta</dt><dd>${esc(bs[0].color)}</dd><dt>Notas</dt><dd>${notaInput("b", k, db.biciNotas[k] || "")}</dd><dt>Estado</dt><dd>${estadoHtml(bs.some(b => b.sal === null))}</dd></dl>` + histTable(bs) : "";
+    const cr = db.ciclistas[k];
+    $("gsel").innerHTML = cr ? `<dl class="props"><dt>Ciclista (sin ticket)</dt><dd>${esc(cr.nombre)}</dd><dt>Color de la bicicleta</dt><dd>${esc(cr.color)}</dd><dt>Notas</dt><dd>${notaInput("b", k, db.biciNotas[k] || "")}</dd><dt>Estado</dt><dd>${estadoHtml(bs.some(b => b.sal === null))}</dd></dl>` + histTable(bs) : "";
   } else $("gsel").innerHTML = "";
 
   // registro por ticket
@@ -121,12 +137,14 @@ function render() {
 
   // lista
   const ult = {}; acc.forEach(a => { ult[a.t] = a; });
+  renderBicis(acc, ult);
   const nReg = tk().filter(t => db.drivers[t].nombre.trim()).length;
   $("segT").innerHTML = [["todos", "Servicio y cargo"], ["S", "Servicio"], ["C", "Cargo"]].map(([v, l]) => `<button data-ft="${v}" class="${fTipo === v ? "on" : ""}">${l}</button>`).join("");
   $("seg").innerHTML = [["mov", "Con movimiento (" + Object.keys(ult).length + ")"], ["dentro", "Dentro (" + tDentro + ")"], ["fuera", "Fuera"], ["sindatos", "Sin datos (" + (tk().length - nReg) + ")"], ["todos", "Todos"]].map(([v, l]) => `<button data-f="${v}" class="${filtro === v ? "on" : ""}">${l}</button>`).join("");
   const lq = $("lq").value.trim().toLowerCase();
   const lista = tk().filter(t => { const d = db.drivers[t], dn = dentro(t);
     if (fTipo !== "todos" && !t.endsWith(fTipo)) return false;
+    if (isBici(d.vehiculo)) return false;
     if (filtro === "dentro" && !dn) return false; if (filtro === "fuera" && dn) return false; if (filtro === "sindatos" && d.nombre.trim()) return false; if (filtro === "mov" && !ult[t]) return false;
     return !lq || (t + " " + tipoDe(t) + " " + d.nombre + " " + d.vehiculo + " " + d.placa + " " + d.puesto + " " + d.notas).toLowerCase().includes(lq); });
   if (!$("lista").contains(document.activeElement)) $("lista").innerHTML = `<table><tr><th>Ticket</th><th>Tipo</th><th>Nombre del empleado</th><th>Vehículo y color</th><th>Placa</th><th>Puesto o labor</th><th>Estado</th><th>Hora de entrada (CDMX)</th><th>Hora de salida (CDMX)</th><th>Notas</th></tr>${lista.slice(0, 100).map(t => { const d = db.drivers[t]; return `<tr><td>${t}</td><td>${tipoDe(t)}</td><td>${esc(d.nombre) || "—"}</td><td>${esc(d.vehiculo) || "—"}</td><td>${esc((d.placa || "").toUpperCase()) || "—"}</td><td>${esc(d.puesto) || "—"}</td><td>${estadoHtml(dentro(t))}</td><td>${ult[t] ? fmt(ult[t].ent) : "—"}</td><td>${!ult[t] ? "—" : ult[t].sal !== null ? fmt(ult[t].sal) : '<span class="ok">Dentro</span>'}</td><td>${notaInput("t", t, d.notas)}</td></tr>`; }).join("")}</table><p>Mostrando ${Math.min(lista.length, 100)} de ${lista.length} tickets.</p>`;
@@ -157,12 +175,14 @@ document.addEventListener("input", e => {
   if (el.id === "fPlaca") { const pos = el.selectionStart; el.value = el.value.toUpperCase(); el.setSelectionRange(pos, pos); validarPlaca(); return; }
   if (el.id === "gq") gSel = "";
   if (el.id === "tq") { msg("tmsg", ""); $("tficha").innerHTML = ""; }
-  if (["gq", "tq", "lq"].includes(el.id)) render();
+  if (["gq", "tq", "lq", "bq"].includes(el.id)) render();
 });
 document.addEventListener("focusout", e => { if (e.target.classList && e.target.classList.contains("nota")) setTimeout(render, 0); });
 document.addEventListener("click", e => {
   const el = e.target.closest("button"); if (!el) return;
   if (el.dataset.sel) { gSel = el.dataset.sel; render(); return; }
+  if (el.dataset.bf) { bFiltro = el.dataset.bf; render(); return; }
+  if (el.dataset.bh) { bHist = bHist === el.dataset.bh ? "" : el.dataset.bh; render(); return; }
   if (el.dataset.ft) { fTipo = el.dataset.ft; render(); return; }
   if (el.dataset.pick) { $("tq").value = el.dataset.pick; msg("tmsg", ""); $("tficha").innerHTML = ""; render(); return; }
   if (el.dataset.f) { filtro = el.dataset.f; render(); return; }
@@ -206,7 +226,7 @@ document.addEventListener("click", e => {
       const n = $("bn").value.trim(), c = $("bc").value.trim();
       if (!n || !c) return msg("bmsg", "Escribe nombre y color de la bicicleta.");
       const i = biciOpen(n, c), ts = Date.now();
-      if (el.id === "bEnt") { if (i >= 0) return msg("bmsg", n + " ya está dentro: registra su salida primero."); db.bicis.push({ nombre: n, color: c, ent: ts, sal: null }); save(); msg("bmsg", "ENTRADA de " + n + " · " + fmt(ts) + " (CDMX)"); }
+      if (el.id === "bEnt") { if (i >= 0) return msg("bmsg", n + " ya está dentro: registra su salida primero."); db.bicis.push({ nombre: n, color: c, ent: ts, sal: null }); db.ciclistas[bkey(n, c)] ||= { nombre: n, color: c }; save(); msg("bmsg", "ENTRADA de " + n + " · " + fmt(ts) + " (CDMX)"); }
       else { if (i < 0) return msg("bmsg", "No hay una entrada abierta para " + n + " con bicicleta " + c + "."); db.bicis[i].sal = ts; save(); msg("bmsg", "SALIDA de " + n + " · " + fmt(ts) + " (CDMX)"); }
       break;
     }
@@ -253,7 +273,13 @@ document.addEventListener("click", e => { const el = e.target.closest("button");
   else if (el.id === "tOk") { const v = $("tIn").value.trim(); try { v ? localStorage.setItem(TKEY, v) : localStorage.removeItem(TKEY); } catch (x) {} pintaTitulo(); }
   else if (el.id === "tDef") { try { localStorage.removeItem(TKEY); } catch (x) {} pintaTitulo(); }
   else if (el.id === "tCancel") pintaTitulo();
-  else if (el.id === "expX") exportXlsx();
+  else if (el.id === "expX" || el.id === "ndExp") exportXlsx();
+  else if (el.id === "nuevoDia") { const nc = accesos().length, nb = db.bicis.length;
+    $("ndTxt").textContent = `Se borrarán ${nc + nb} registros de acceso (${nc} de conductores y ${nb} de bicicletas). El padrón, los ciclistas registrados, sus notas y el título no se tocan.`;
+    $("ndPaso2").hidden = true; $("ndSi").hidden = false; $("ndDlg").showModal(); }
+  else if (el.id === "ndSi") { $("ndSi").hidden = true; $("ndPaso2").hidden = false; }
+  else if (el.id === "ndNo") $("ndDlg").close();
+  else if (el.id === "ndBorrar") { const n = accesos().length + db.bicis.length; db.movs = []; db.bicis = []; $("ndDlg").close(); gSel = ""; save(); msg("ndmsg", "Nuevo día: " + n + " registros de acceso borrados."); }
 });
 document.addEventListener("keydown", e => { if (e.target.id === "tIn" && e.key === "Enter") $("tOk").click(); });
 pintaTitulo();
@@ -265,7 +291,7 @@ function exportXlsx() {
     ...tk().map(t => { const d = db.drivers[t]; return [t, tipoDe(t), d.nombre, (d.placa || "").toUpperCase(), d.vehiculo, d.puesto, d.notas || "", dentro(t) ? "Dentro" : "Fuera"]; })], "Padrón");
   add([["Ticket", "Tipo", "Nombre", "Placa", "Hora de entrada (CDMX)", "Hora de salida (CDMX)", "Duración"],
     ...accesos().map(a => { const d = db.drivers[a.t] || {}; return [a.t, tipoDe(a.t), d.nombre || "", (d.placa || "").toUpperCase(), fmt(a.ent), a.sal !== null ? fmt(a.sal) : "", a.sal !== null ? dur(a.ent, a.sal) : "En curso"]; })], "Accesos");
-  const seen = new Map(); db.bicis.forEach(b => { const k = bkey(b.nombre, b.color); if (!seen.has(k)) seen.set(k, [b.nombre, b.color, db.biciNotas[k] || ""]); });
+  const seen = new Map(Object.entries(db.ciclistas).map(([k, c]) => [k, [c.nombre, c.color, db.biciNotas[k] || ""]]));
   add([["Nombre", "Color de la bicicleta", "Notas"], ...seen.values()], "Ciclistas");
   add([["Nombre", "Color", "Hora de entrada (CDMX)", "Hora de salida (CDMX)", "Duración"],
     ...db.bicis.map(b => [b.nombre, b.color, fmt(b.ent), b.sal !== null ? fmt(b.sal) : "", b.sal !== null ? dur(b.ent, b.sal) : "En curso"])], "Accesos ciclistas");

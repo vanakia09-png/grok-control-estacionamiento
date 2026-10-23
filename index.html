@@ -74,6 +74,29 @@
     <div id="lista" class="tw"></div>
   </section>
   <section>
+    <h2>Bicicletas</h2>
+    <div class="row">
+      <div class="seg row" id="bseg"></div>
+      <label>Buscar<input id="bq" placeholder="Nombre, color, ticket o notas"></label>
+    </div>
+    <div id="blista" class="tw"></div>
+  </section>
+  <section class="coralbox">
+    <h2>Nuevo día</h2>
+    <button id="nuevoDia" class="coral">Nuevo día (borrar entradas y salidas)</button>
+    <div id="ndmsg"></div>
+  </section>
+  <dialog id="ndDlg" class="coralbox">
+    <h2>¿Empezar un nuevo día?</h2>
+    <p id="ndTxt"></p>
+    <div class="row">
+      <button id="ndExp" class="ent">Exportar a Excel primero</button>
+      <button id="ndSi" class="coral">Continuar</button>
+      <button id="ndNo">Cancelar</button>
+    </div>
+    <div id="ndPaso2" hidden><p class="danger">Segunda confirmación: esta acción no se puede deshacer.</p><button id="ndBorrar" class="coral">Sí, borrar todos los registros de acceso</button></div>
+  </dialog>
+  <section>
     <h2>Importar y exportar CSV</h2>
     <p>Importar: <code>ticket,tipo,nombre,vehiculo_color,placa,puesto,notas</code>; ticket con letra (010S / 010C) o tipo Servicio/Cargo; sin letra ni tipo = Servicio (placa obligatoria, se convierte a mayúsculas; notas opcional). Los tickets incluidos se sobrescriben.</p>
     <textarea id="csvIn" placeholder="201S,Servicio,José Ángel Flores,Automóvil color negro,ABC123A,Labores domésticas,Contratista"></textarea>
