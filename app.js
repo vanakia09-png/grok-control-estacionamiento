@@ -210,6 +210,40 @@ function download(name, lines) {
   a.download = name; document.body.appendChild(a); a.click(); a.remove();
 }
 
+// título editable
+const TKEY = "gce_titulo", TDEF = "Grok Control Estacionamiento";
+function getTitulo() { try { return localStorage.getItem(TKEY) || TDEF; } catch (e) { return TDEF; } }
+function pintaTitulo() { const t = getTitulo(); $("titulo").textContent = t; document.title = t;
+  $("tEdit").innerHTML = '<button id="tPen" title="Editar título">✏️ Editar título</button>'; }
+function editaTitulo() {
+  $("tEdit").innerHTML = `<input id="tIn" value="${esc(getTitulo())}" aria-label="Título"><button id="tOk" class="ent">Guardar</button><button id="tDef">Restaurar predeterminado</button><button id="tCancel">Cancelar</button>`;
+  $("tIn").focus();
+}
+document.addEventListener("click", e => { const el = e.target.closest("button"); if (!el) return;
+  if (el.id === "tPen") editaTitulo();
+  else if (el.id === "tOk") { const v = $("tIn").value.trim(); try { v ? localStorage.setItem(TKEY, v) : localStorage.removeItem(TKEY); } catch (x) {} pintaTitulo(); }
+  else if (el.id === "tDef") { try { localStorage.removeItem(TKEY); } catch (x) {} pintaTitulo(); }
+  else if (el.id === "tCancel") pintaTitulo();
+  else if (el.id === "expX") exportXlsx();
+});
+document.addEventListener("keydown", e => { if (e.target.id === "tIn" && e.key === "Enter") $("tOk").click(); });
+pintaTitulo();
+
+function exportXlsx() {
+  if (typeof XLSX === "undefined") return alert("No se pudo cargar el generador de Excel.");
+  const wb = XLSX.utils.book_new(), add = (rows, name) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), name);
+  add([["Ticket", "Nombre", "Placa", "Vehículo y color", "Puesto o labor", "Notas", "Estado"],
+    ...tk().map(t => { const d = db.drivers[t]; return [t, d.nombre, (d.placa || "").toUpperCase(), d.vehiculo, d.puesto, d.notas || "", dentro(t) ? "Dentro" : "Fuera"]; })], "Padrón");
+  add([["Ticket", "Nombre", "Placa", "Hora de entrada (CDMX)", "Hora de salida (CDMX)", "Duración"],
+    ...accesos().map(a => { const d = db.drivers[a.t] || {}; return [a.t, d.nombre || "", (d.placa || "").toUpperCase(), fmt(a.ent), a.sal !== null ? fmt(a.sal) : "", a.sal !== null ? dur(a.ent, a.sal) : "En curso"]; })], "Accesos");
+  const seen = new Map(); db.bicis.forEach(b => { const k = bkey(b.nombre, b.color); if (!seen.has(k)) seen.set(k, [b.nombre, b.color, db.biciNotas[k] || ""]); });
+  add([["Nombre", "Color de la bicicleta", "Notas"], ...seen.values()], "Ciclistas");
+  add([["Nombre", "Color", "Hora de entrada (CDMX)", "Hora de salida (CDMX)", "Duración"],
+    ...db.bicis.map(b => [b.nombre, b.color, fmt(b.ent), b.sal !== null ? fmt(b.sal) : "", b.sal !== null ? dur(b.ent, b.sal) : "En curso"])], "Accesos ciclistas");
+  const f = new Date().toLocaleDateString("en-CA", { timeZone: "America/Mexico_City" });
+  XLSX.writeFile(wb, "control-estacionamiento-" + f + ".xlsx");
+}
+
 setInterval(render, 60000);
 render();
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").then(r => { window.__swOk = true; }).catch(e => { window.__swErr = String(e); });

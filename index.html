@@ -13,7 +13,8 @@
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<header><h1>Grok Control Estacionamiento</h1></header>
+<header class="row" style="justify-content:space-between"><h1 id="titulo">Grok Control Estacionamiento</h1>
+  <div class="row" id="tEdit"><button id="tPen" title="Editar título">✏️ Editar título</button></div></header>
 <main>
   <div class="top">
     <div class="big" id="cDentro"></div>
@@ -79,11 +80,13 @@
       <button id="expC">Exportar conductores</button>
       <button id="expA">Exportar accesos</button>
       <button id="expB">Exportar ciclistas</button>
+      <button id="expX" class="ent">Exportar a Excel (.xlsx)</button>
     </div>
     <div id="csvmsg"></div>
   </section>
   <p style="font-size:14px">Datos guardados solo en este dispositivo (localStorage). Exporta a CSV para respaldo. Horas en America/Mexico_City.</p>
 </main>
+<script src="xlsx.full.min.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
