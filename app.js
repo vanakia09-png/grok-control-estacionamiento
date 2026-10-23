@@ -120,15 +120,16 @@ function render() {
   $("bdentro").innerHTML = bDentro.length ? `<table><tr><th>Dentro ahora</th><th>Color</th><th>Hora de entrada (CDMX)</th><th>Tiempo dentro</th><th>Notas</th></tr>${bDentro.map(b => { const k = bkey(b.nombre, b.color); return `<tr><td>${esc(b.nombre)}</td><td>${esc(b.color)}</td><td>${fmt(b.ent)}</td><td>${enCurso(b.ent)}</td><td>${notaInput("b", k, db.biciNotas[k] || "")}</td></tr>`; }).join("")}</table>` : "";
 
   // lista
+  const ult = {}; acc.forEach(a => { ult[a.t] = a; });
   const nReg = tk().filter(t => db.drivers[t].nombre.trim()).length;
   $("segT").innerHTML = [["todos", "Servicio y cargo"], ["S", "Servicio"], ["C", "Cargo"]].map(([v, l]) => `<button data-ft="${v}" class="${fTipo === v ? "on" : ""}">${l}</button>`).join("");
-  $("seg").innerHTML = [["todos", "Todos"], ["dentro", "Dentro (" + tDentro + ")"], ["fuera", "Fuera"], ["sindatos", "Sin datos (" + (tk().length - nReg) + ")"]].map(([v, l]) => `<button data-f="${v}" class="${filtro === v ? "on" : ""}">${l}</button>`).join("");
+  $("seg").innerHTML = [["mov", "Con movimiento (" + Object.keys(ult).length + ")"], ["dentro", "Dentro (" + tDentro + ")"], ["fuera", "Fuera"], ["sindatos", "Sin datos (" + (tk().length - nReg) + ")"], ["todos", "Todos"]].map(([v, l]) => `<button data-f="${v}" class="${filtro === v ? "on" : ""}">${l}</button>`).join("");
   const lq = $("lq").value.trim().toLowerCase();
   const lista = tk().filter(t => { const d = db.drivers[t], dn = dentro(t);
     if (fTipo !== "todos" && !t.endsWith(fTipo)) return false;
-    if (filtro === "dentro" && !dn) return false; if (filtro === "fuera" && dn) return false; if (filtro === "sindatos" && d.nombre.trim()) return false;
+    if (filtro === "dentro" && !dn) return false; if (filtro === "fuera" && dn) return false; if (filtro === "sindatos" && d.nombre.trim()) return false; if (filtro === "mov" && !ult[t]) return false;
     return !lq || (t + " " + tipoDe(t) + " " + d.nombre + " " + d.vehiculo + " " + d.placa + " " + d.puesto + " " + d.notas).toLowerCase().includes(lq); });
-  if (!$("lista").contains(document.activeElement)) $("lista").innerHTML = `<table><tr><th>Ticket</th><th>Tipo</th><th>Nombre del empleado</th><th>Vehículo y color</th><th>Placa</th><th>Puesto o labor</th><th>Estado</th><th>Notas</th></tr>${lista.slice(0, 100).map(t => { const d = db.drivers[t]; return `<tr><td>${t}</td><td>${tipoDe(t)}</td><td>${esc(d.nombre) || "—"}</td><td>${esc(d.vehiculo) || "—"}</td><td>${esc((d.placa || "").toUpperCase()) || "—"}</td><td>${esc(d.puesto) || "—"}</td><td>${estadoHtml(dentro(t))}</td><td>${notaInput("t", t, d.notas)}</td></tr>`; }).join("")}</table><p>Mostrando ${Math.min(lista.length, 100)} de ${lista.length} tickets.</p>`;
+  if (!$("lista").contains(document.activeElement)) $("lista").innerHTML = `<table><tr><th>Ticket</th><th>Tipo</th><th>Nombre del empleado</th><th>Vehículo y color</th><th>Placa</th><th>Puesto o labor</th><th>Estado</th><th>Hora de entrada (CDMX)</th><th>Hora de salida (CDMX)</th><th>Notas</th></tr>${lista.slice(0, 100).map(t => { const d = db.drivers[t]; return `<tr><td>${t}</td><td>${tipoDe(t)}</td><td>${esc(d.nombre) || "—"}</td><td>${esc(d.vehiculo) || "—"}</td><td>${esc((d.placa || "").toUpperCase()) || "—"}</td><td>${esc(d.puesto) || "—"}</td><td>${estadoHtml(dentro(t))}</td><td>${ult[t] ? fmt(ult[t].ent) : "—"}</td><td>${!ult[t] ? "—" : ult[t].sal !== null ? fmt(ult[t].sal) : '<span class="ok">Dentro</span>'}</td><td>${notaInput("t", t, d.notas)}</td></tr>`; }).join("")}</table><p>Mostrando ${Math.min(lista.length, 100)} de ${lista.length} tickets.</p>`;
 }
 function curTicket() {
   const q = $("tq").value.trim().toLowerCase(); if (!q) return "";
