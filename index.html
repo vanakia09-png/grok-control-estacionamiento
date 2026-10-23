@@ -51,13 +51,14 @@
   </section>
   <section>
     <h2>Agregar conductor al padrón</h2>
+    <div class="clsgrp" data-for="aClase"><button type="button" class="clsbig" data-cl="Auto" aria-pressed="false">🚗 Auto</button><button type="button" class="clsbig" data-cl="Moto" aria-pressed="false">🏍️ Moto</button><span class="clsmin"><button type="button" data-cl="Bicicleta">Bicicleta</button><button type="button" class="on" data-cl="">Automática</button></span><span class="clsprev" id="aClasePrev"></span></div>
     <div class="row">
       <label>Tipo<select id="aTipo"><option value="S">Servicio (S)</option><option value="C">Cargo (C)</option></select></label>
       <label>Número<input id="aTicket" inputmode="numeric" style="width:90px" placeholder="501"></label>
       <label>Nombre del empleado<input id="aNombre"></label>
       <label>Tipo de vehículo y color<input id="aVeh"></label>
       <label>Placa (obligatoria)<input id="aPlaca" style="text-transform:uppercase"></label>
-      <label>Clase<select id="aClase"><option value="">Automática (según vehículo)</option><option>Auto</option><option>Moto</option><option>Bicicleta</option></select></label>
+      <select id="aClase" hidden><option value="">Automática (según vehículo)</option><option>Auto</option><option>Moto</option><option>Bicicleta</option></select>
       <label>Puesto o labor<input id="aPuesto"></label>
       <button id="aAdd" class="ent" disabled>Agregar</button>
     </div>

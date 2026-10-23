@@ -18,7 +18,15 @@ const inferClase = v => /bici/i.test(v || "") ? "Bicicleta" : /moto|scooter/i.te
 const claseDe = d => (d && ["Auto", "Moto", "Bicicleta"].includes(d.clase)) ? d.clase : inferClase(d && d.vehiculo);
 const disp = t => t + (db.drivers[t] && claseDe(db.drivers[t]) === "Moto" ? "M" : "");
 const isBiciT = t => claseDe(db.drivers[t]) === "Bicicleta";
-const claseSel = (id, v) => `<select id="${id}"><option value="">Automática (según vehículo)</option>${["Auto", "Moto", "Bicicleta"].map(c => `<option${v === c ? " selected" : ""}>${c}</option>`).join("")}</select>`;
+const clsBtns = (sel, v) => `<div class="clsgrp" data-for="${sel}"><button type="button" class="clsbig${v === "Auto" ? " on" : ""}" data-cl="Auto" aria-pressed="${v === "Auto"}">🚗 Auto</button><button type="button" class="clsbig${v === "Moto" ? " on" : ""}" data-cl="Moto" aria-pressed="${v === "Moto"}">🏍️ Moto</button><span class="clsmin"><button type="button" class="${v === "Bicicleta" ? "on" : ""}" data-cl="Bicicleta">Bicicleta</button><button type="button" class="${!v ? "on" : ""}" data-cl="">Automática</button></span><span class="clsprev" id="${sel}Prev"></span></div>`;
+function syncCls(sel) {
+  const s = $(sel); if (!s) return; const g = document.querySelector(`.clsgrp[data-for="${sel}"]`), v = s.value;
+  g.querySelectorAll("button").forEach(b => { const on = b.dataset.cl === v; b.classList.toggle("on", on); b.setAttribute("aria-pressed", on); });
+  const veh = $(sel === "aClase" ? "aVeh" : "fVeh"), num = $(sel === "aClase" ? "aTicket" : "fTicket"), tip = $(sel === "aClase" ? "aTipo" : "fTipo");
+  const eff = v || inferClase(veh && veh.value), id = parseId((num && num.value) + (tip && tip.value));
+  $(sel + "Prev").textContent = (id ? "Se mostrará como " + id + (eff === "Moto" ? "M" : "") : "") + " · Clase: " + eff + (v ? "" : " (automática)");
+}
+const claseSel = (id, v) => `<select id="${id}" hidden><option value="">Automática (según vehículo)</option>${["Auto", "Moto", "Bicicleta"].map(c => `<option${v === c ? " selected" : ""}>${c}</option>`).join("")}</select>`;
 const NOTA_PH = "jefe, contratista, inspector, empresa…";
 
 function initDb() {
@@ -70,12 +78,13 @@ function fichaTicket(t, editable) {
     <dt>Notas</dt><dd>${notaInput("t", t, d.notas)}</dd>
     <dt>Estado</dt><dd>${estadoHtml(dentro(t))}</dd></dl>`;
   if (editable) html += `<h3>Editar datos del conductor</h3><div class="row">
+    ${clsBtns("fClase", d.clase || "")}
     <label>Tipo<select id="fTipo"><option value="S"${t.endsWith("S") ? " selected" : ""}>Servicio (S)</option><option value="C"${t.endsWith("C") ? " selected" : ""}>Cargo (C)</option></select></label>
     <label>Número<input id="fTicket" value="${t.slice(0, -1)}" inputmode="numeric" style="width:90px"></label>
     <label>Nombre del empleado<input id="fNombre" value="${esc(d.nombre)}"></label>
     <label>Tipo de vehículo y color<input id="fVeh" value="${esc(d.vehiculo)}" placeholder="Ej. Bicicleta roja"></label>
     <label>Placa (obligatoria)<input id="fPlaca" value="${esc((d.placa || "").toUpperCase())}" style="text-transform:uppercase"></label>
-    <label>Clase${claseSel("fClase", d.clase)}</label>
+    ${claseSel("fClase", d.clase)}
     <label>Puesto o labor<input id="fPuesto" value="${esc(d.puesto)}"></label>
     <button id="fSave" class="ent" data-t="${t}">Guardar datos</button><button id="fDel" class="sal" data-t="${t}">Borrar del padrón</button></div>
     <div id="fErr" class="danger" style="margin-top:6px" hidden>La placa es obligatoria</div>`;
@@ -141,7 +150,7 @@ function render() {
   const amb = !t ? ambos($("tq").value) : [];
   $("tpick").innerHTML = amb.length ? "<p>¿Cuál ticket?</p>" + amb.map(x => `<button class="res" data-pick="${x}">Ticket ${disp(x)} · ${tipoDe(x)}${db.drivers[x].nombre ? " · " + esc(db.drivers[x].nombre) : ""}</button>`).join("") : "";
   if (!document.activeElement || !$("tficha").contains(document.activeElement)) $("tficha").innerHTML = t ? fichaTicket(t, true) : "";
-  validarPlaca();
+  validarPlaca(); if ($("fClase") && !$("fClase").dataset.s) { $("fClase").dataset.s = 1; syncCls("fClase"); }
 
   // ciclistas dentro
   $("bdentro").innerHTML = bDentro.length ? `<table><tr><th>Dentro ahora</th><th>Color</th><th>Hora de entrada (CDMX)</th><th>Tiempo dentro</th><th>Notas</th></tr>${bDentro.map(b => { const k = bkey(b.nombre, b.color); return `<tr><td>${esc(b.nombre)}</td><td>${esc(b.color)}</td><td>${fmt(b.ent)}</td><td>${enCurso(b.ent)}</td><td>${notaInput("b", k, db.biciNotas[k] || "")}</td></tr>`; }).join("")}</table>` : "";
@@ -186,6 +195,8 @@ document.addEventListener("input", e => {
   if (el.id === "aPlaca") { const pos = el.selectionStart; el.value = el.value.toUpperCase(); el.setSelectionRange(pos, pos); }
   if (el.id.startsWith("a")) { const v = $("aPlaca").value.trim() === ""; $("aAdd").disabled = v; $("aErr").hidden = !v; }
   if (el.id === "fPlaca") { const pos = el.selectionStart; el.value = el.value.toUpperCase(); el.setSelectionRange(pos, pos); validarPlaca(); return; }
+  if (["aVeh", "aTicket", "aTipo"].includes(el.id)) syncCls("aClase");
+  if (["fVeh", "fTicket", "fTipo"].includes(el.id)) syncCls("fClase");
   if (el.id === "gq") gSel = "";
   if (el.id === "tq") { msg("tmsg", ""); $("tficha").innerHTML = ""; }
   if (["gq", "tq", "lq", "bq"].includes(el.id)) render();
@@ -194,6 +205,7 @@ document.addEventListener("focusout", e => { if (e.target.classList && e.target.
 document.addEventListener("click", e => {
   const el = e.target.closest("button"); if (!el) return;
   if (el.dataset.sel) { gSel = el.dataset.sel; render(); return; }
+  if (el.dataset.cl !== undefined && el.closest(".clsgrp")) { const sel = el.closest(".clsgrp").dataset.for; $(sel).value = el.dataset.cl; syncCls(sel); return; }
   if (el.dataset.bf) { bFiltro = el.dataset.bf; render(); return; }
   if (el.dataset.bh) { bHist = bHist === el.dataset.bh ? "" : el.dataset.bh; render(); return; }
   if (el.dataset.fc) { fClase = el.dataset.fc; render(); return; }
@@ -233,7 +245,7 @@ document.addEventListener("click", e => {
       if (db.drivers[nt]) return msg("amsg", "El ticket " + disp(nt) + " ya existe; búscalo para editarlo.");
       if (!placa) return msg("amsg", "La placa es obligatoria");
       db.drivers[nt] = { nombre: $("aNombre").value.trim(), vehiculo: $("aVeh").value.trim(), placa, puesto: $("aPuesto").value.trim(), notas: "", clase: $("aClase").value };
-      ["aTicket", "aNombre", "aVeh", "aPlaca", "aPuesto"].forEach(i => $(i).value = "");
+      ["aTicket", "aNombre", "aVeh", "aPlaca", "aPuesto", "aClase"].forEach(i => $(i).value = ""); syncCls("aClase");
       save(); msg("amsg", "Ticket " + disp(nt) + " agregado al padrón."); break;
     }
     case "bEnt": case "bSal": {
@@ -314,5 +326,5 @@ function exportXlsx() {
 }
 
 setInterval(render, 60000);
-render();
+render(); syncCls("aClase");
 if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").then(r => { window.__swOk = true; }).catch(e => { window.__swErr = String(e); });
