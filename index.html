@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="es-MX">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Grok Control Estacionamiento</title>
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#1F2A37">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Control Estac.">
+<link rel="apple-touch-icon" href="icons/icon-192.png">
+<link rel="icon" href="icons/icon-192.png">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header><h1>Grok Control Estacionamiento</h1></header>
+<main>
+  <div class="top">
+    <div class="big" id="cDentro"></div>
+    <div class="big" id="cBici"></div>
+  </div>
+  <section id="alertas" class="alerta" hidden></section>
+  <section>
+    <h2>Buscador</h2>
+    <label>Buscar por nombre, ticket o notas<input id="gq" placeholder="Ej. 201, José, contratista"></label>
+    <div id="gres" class="row" style="margin-top:8px"></div>
+    <div id="gsel"></div>
+  </section>
+  <section>
+    <h2>Registro por ticket</h2>
+    <div class="row">
+      <label>Ticket o nombre<input id="tq" placeholder="Ej. 201"></label>
+      <button class="ent" id="tEnt">Registrar ENTRADA</button>
+      <button class="sal" id="tSal">Registrar SALIDA</button>
+    </div>
+    <div id="tmsg"></div>
+    <div id="tficha"></div>
+  </section>
+  <section>
+    <h2>Ciclistas sin ticket</h2>
+    <div class="row">
+      <label>Nombre<input id="bn"></label>
+      <label>Color de la bicicleta<input id="bc"></label>
+      <button class="ent" id="bEnt">Registrar ENTRADA</button>
+      <button class="sal" id="bSal">Registrar SALIDA</button>
+    </div>
+    <div id="bmsg"></div>
+    <div id="bdentro" class="tw"></div>
+  </section>
+  <section>
+    <h2>Agregar conductor al padrón</h2>
+    <div class="row">
+      <label>Número de ticket<input id="aTicket" inputmode="numeric" style="width:110px" placeholder="501"></label>
+      <label>Nombre del empleado<input id="aNombre"></label>
+      <label>Tipo de vehículo y color<input id="aVeh"></label>
+      <label>Placa (obligatoria)<input id="aPlaca" style="text-transform:uppercase"></label>
+      <label>Puesto o labor<input id="aPuesto"></label>
+      <button id="aAdd" class="ent" disabled>Agregar</button>
+    </div>
+    <div id="aErr" class="danger" style="margin-top:6px">La placa es obligatoria</div>
+    <div id="amsg"></div>
+    <p style="font-size:14px">Para editar o borrar: escribe el ticket en "Registro por ticket"; ahí puedes cambiar número, nombre, vehículo, placa y puesto, o borrarlo.</p>
+  </section>
+  <section>
+    <h2>Conductores</h2>
+    <div class="row">
+      <div class="seg row" id="seg"></div>
+      <label>Buscar<input id="lq" placeholder="Ticket, nombre, vehículo, puesto o notas"></label>
+    </div>
+    <div id="lista" class="tw"></div>
+  </section>
+  <section>
+    <h2>Importar y exportar CSV</h2>
+    <p>Importar: <code>ticket,nombre,vehiculo_color,placa,puesto,notas</code> (placa obligatoria, se convierte a mayúsculas; notas opcional). Los tickets incluidos se sobrescriben.</p>
+    <textarea id="csvIn" placeholder="201,José Ángel Flores,Automóvil color negro,ABC123A,Labores domésticas,Contratista"></textarea>
+    <div class="row" style="margin-top:8px">
+      <label>o archivo .csv<input type="file" id="csvFile" accept=".csv,text/csv"></label>
+      <button id="imp">Importar conductores</button>
+      <button id="expC">Exportar conductores</button>
+      <button id="expA">Exportar accesos</button>
+      <button id="expB">Exportar ciclistas</button>
+    </div>
+    <div id="csvmsg"></div>
+  </section>
+  <p style="font-size:14px">Datos guardados solo en este dispositivo (localStorage). Exporta a CSV para respaldo. Horas en America/Mexico_City.</p>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

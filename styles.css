@@ -1,0 +1,33 @@
+:root{--txt:#1F2A37;--muted:#2E3A4A;--bg:#F7F9FC;--card:#FFFFFF;--line:#B8C4D3;--azul:#DCEBFB;--amarillo:#FFF3C4;--verde:#DDF3E4;--coral:#FFE0D9;--rojo:#C62828}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;background:var(--bg);color:var(--txt);font-size:17px}
+header{background:var(--azul);padding:12px 18px;border-bottom:1px solid var(--line)}
+header h1{margin:0;font-size:21px}
+main{max-width:1200px;margin:0 auto;padding:12px}
+section{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:12px 0}
+h2{margin:0 0 10px;font-size:19px}
+.top{display:flex;flex-wrap:wrap;gap:12px}
+.big{flex:1 1 300px;background:var(--verde);border:1px solid var(--line);border-radius:16px;padding:16px 20px;color:var(--txt)}
+.big .n{font-size:84px;font-weight:800;line-height:1}
+.big .l{font-size:22px;font-weight:700}
+.big .d{font-size:15px;margin-top:6px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+label{display:flex;flex-direction:column;font-size:14px;color:var(--muted);gap:4px}
+input,textarea{font:inherit;color:var(--txt);background:#fff;border:1px solid var(--line);border-radius:8px;padding:9px 10px;min-height:44px}
+textarea{width:100%;min-height:90px;font-family:ui-monospace,monospace;font-size:14px}
+button{font:inherit;font-weight:600;color:var(--txt);border:1px solid var(--line);border-radius:10px;padding:10px 14px;min-height:44px;cursor:pointer;background:var(--azul)}
+button.ent{background:var(--verde)} button.sal{background:var(--amarillo)} button.res{font-weight:500;text-align:left}
+button:disabled{opacity:.55;cursor:not-allowed}
+.alerta{background:var(--coral);border:2px solid var(--rojo)}
+.danger{color:var(--txt);background:var(--coral);border-left:4px solid var(--rojo);padding:2px 6px;font-weight:700;border-radius:4px}
+.ok{background:var(--verde);padding:2px 8px;border-radius:99px}
+.fuera{background:#EEF1F5;padding:2px 8px;border-radius:99px}
+.tw{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:15px}
+th,td{border-bottom:1px solid var(--line);padding:7px 6px;text-align:left;vertical-align:middle}
+th{color:var(--muted)}
+td input.nota,dd input.nota{width:100%;min-width:170px;min-height:36px;padding:5px 8px}
+.props{display:grid;grid-template-columns:max-content 1fr;gap:6px 14px;margin:10px 0}
+.props dt{color:var(--muted)} .props dd{margin:0}
+.msg{background:var(--azul);padding:8px 10px;border-radius:8px;margin-top:8px}
+.seg button{background:#fff}.seg button.on{background:var(--azul)}
