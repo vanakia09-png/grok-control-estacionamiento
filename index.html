@@ -30,10 +30,11 @@
   <section>
     <h2>Registro por ticket</h2>
     <div class="row">
-      <label>Ticket o nombre<input id="tq" placeholder="Ej. 201"></label>
+      <label>Ticket o nombre<input id="tq" placeholder="Ej. 010S, 10 c o nombre"></label>
       <button class="ent" id="tEnt">Registrar ENTRADA</button>
       <button class="sal" id="tSal">Registrar SALIDA</button>
     </div>
+    <div id="tpick"></div>
     <div id="tmsg"></div>
     <div id="tficha"></div>
   </section>
@@ -51,7 +52,8 @@
   <section>
     <h2>Agregar conductor al padrón</h2>
     <div class="row">
-      <label>Número de ticket<input id="aTicket" inputmode="numeric" style="width:110px" placeholder="501"></label>
+      <label>Tipo<select id="aTipo"><option value="S">Servicio (S)</option><option value="C">Cargo (C)</option></select></label>
+      <label>Número<input id="aTicket" inputmode="numeric" style="width:90px" placeholder="501"></label>
       <label>Nombre del empleado<input id="aNombre"></label>
       <label>Tipo de vehículo y color<input id="aVeh"></label>
       <label>Placa (obligatoria)<input id="aPlaca" style="text-transform:uppercase"></label>
@@ -65,6 +67,7 @@
   <section>
     <h2>Conductores</h2>
     <div class="row">
+      <div class="seg row" id="segT"></div>
       <div class="seg row" id="seg"></div>
       <label>Buscar<input id="lq" placeholder="Ticket, nombre, vehículo, puesto o notas"></label>
     </div>
@@ -72,8 +75,8 @@
   </section>
   <section>
     <h2>Importar y exportar CSV</h2>
-    <p>Importar: <code>ticket,nombre,vehiculo_color,placa,puesto,notas</code> (placa obligatoria, se convierte a mayúsculas; notas opcional). Los tickets incluidos se sobrescriben.</p>
-    <textarea id="csvIn" placeholder="201,José Ángel Flores,Automóvil color negro,ABC123A,Labores domésticas,Contratista"></textarea>
+    <p>Importar: <code>ticket,tipo,nombre,vehiculo_color,placa,puesto,notas</code>; ticket con letra (010S / 010C) o tipo Servicio/Cargo; sin letra ni tipo = Servicio (placa obligatoria, se convierte a mayúsculas; notas opcional). Los tickets incluidos se sobrescriben.</p>
+    <textarea id="csvIn" placeholder="201S,Servicio,José Ángel Flores,Automóvil color negro,ABC123A,Labores domésticas,Contratista"></textarea>
     <div class="row" style="margin-top:8px">
       <label>o archivo .csv<input type="file" id="csvFile" accept=".csv,text/csv"></label>
       <button id="imp">Importar conductores</button>

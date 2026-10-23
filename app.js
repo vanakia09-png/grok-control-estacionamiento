@@ -1,8 +1,13 @@
 "use strict";
 const KEY = "gce_v1", LIM = 24 * 3600e3;
 const pad = n => String(n).padStart(3, "0");
-const INIT = Array.from({ length: 500 }, (_, i) => pad(i + 1));
-const tk = () => Object.keys(db.drivers).sort((a, b) => +a - +b);
+const INIT = ["S", "C"].flatMap(L => Array.from({ length: 500 }, (_, i) => pad(i + 1) + L));
+const tipoDe = t => /C$/.test(t) ? "Cargo" : "Servicio";
+const numDe = t => parseInt(t, 10);
+const tk = () => Object.keys(db.drivers).sort((a, b) => (a.slice(-1) === b.slice(-1) ? 0 : a.endsWith("S") ? -1 : 1) || numDe(a) - numDe(b));
+// "10s", "010S", "10 c", "servicio 10" -> "010S"; solo número -> "" (ambiguo)
+const parseId = s => { const m = String(s).trim().toUpperCase().match(/^(\d{1,5})\s*-?\s*([SC])$/); if (!m) return ""; const n = +m[1]; return n >= 1 && n <= 99999 ? pad(n) + m[2] : ""; };
+const ambos = s => { const m = String(s).trim().match(/^\d{1,5}$/); if (!m) return []; const n = +m[0]; return n >= 1 ? [pad(n) + "S", pad(n) + "C"].filter(t => db.drivers[t]) : []; };
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const fmt = ts => new Date(ts).toLocaleString("es-MX", { timeZone: "America/Mexico_City", dateStyle: "short", timeStyle: "short" });
@@ -15,12 +20,22 @@ const NOTA_PH = "jefe, contratista, inspector, empresa…";
 function initDb() {
   const drivers = {};
   INIT.forEach(t => drivers[t] = { nombre: "", vehiculo: "", placa: "", puesto: "", notas: "" });
-  drivers["201"] = { nombre: "José Ángel Flores (ejemplo)", vehiculo: "Automóvil color negro", placa: "", puesto: "Labores domésticas", notas: "" };
+  drivers["201S"] = { nombre: "José Ángel Flores (ejemplo)", vehiculo: "Automóvil color negro", placa: "", puesto: "Labores domésticas", notas: "" };
   return { drivers, movs: [], bicis: [], biciNotas: {} };
 }
 let db;
 try { const r = localStorage.getItem(KEY); db = r ? JSON.parse(r) : initDb(); } catch (e) { db = initDb(); }
 if (!db.drivers) db.drivers = initDb().drivers; db.movs ||= []; db.bicis ||= []; db.biciNotas ||= {};
+// migración v2: tickets sin letra -> Servicio (S), sin perder accesos
+if (db.ver !== 2) {
+  const mig = [], nd = {};
+  Object.keys(db.drivers).forEach(t => { if (/^\d+$/.test(t)) { const n = pad(+t) + "S"; nd[n] = db.drivers[t]; mig.push(t + "→" + n); } else nd[t] = db.drivers[t]; });
+  db.movs.forEach(m => { if (/^\d+$/.test(m.t)) m.t = pad(+m.t) + "S"; });
+  INIT.forEach(t => { nd[t] ||= { nombre: "", vehiculo: "", placa: "", puesto: "", notas: "" }; });
+  db.drivers = nd; db.ver = 2;
+  try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) {}
+  window.__migrados = mig.length;
+}
 function save() { try { localStorage.setItem(KEY, JSON.stringify(db)); } catch (e) { alert("No se pudo guardar en este dispositivo. Exporta a CSV."); } render(); }
 
 // derivados
@@ -40,7 +55,8 @@ function fichaTicket(t, editable) {
   const d = db.drivers[t];
   const h = accesos().filter(a => a.t === t).reverse();
   let html = `<dl class="props">
-    <dt>Número de ticket</dt><dd>${t}</dd>
+    <dt>Número de ticket</dt><dd><b>${t}</b></dd>
+    <dt>Tipo</dt><dd>${tipoDe(t)}</dd>
     <dt>Nombre del empleado</dt><dd>${esc(d.nombre) || "Sin registrar"}</dd>
     <dt>Tipo de vehículo y color</dt><dd>${esc(d.vehiculo) || "Sin registrar"}</dd>
     <dt>Placa</dt><dd>${esc((d.placa || "").toUpperCase()) || "Sin registrar"}</dd>
@@ -48,7 +64,8 @@ function fichaTicket(t, editable) {
     <dt>Notas</dt><dd>${notaInput("t", t, d.notas)}</dd>
     <dt>Estado</dt><dd>${estadoHtml(dentro(t))}</dd></dl>`;
   if (editable) html += `<h3>Editar datos del conductor</h3><div class="row">
-    <label>Número de ticket<input id="fTicket" value="${t}" inputmode="numeric" style="width:110px"></label>
+    <label>Tipo<select id="fTipo"><option value="S"${t.endsWith("S") ? " selected" : ""}>Servicio (S)</option><option value="C"${t.endsWith("C") ? " selected" : ""}>Cargo (C)</option></select></label>
+    <label>Número<input id="fTicket" value="${t.slice(0, -1)}" inputmode="numeric" style="width:90px"></label>
     <label>Nombre del empleado<input id="fNombre" value="${esc(d.nombre)}"></label>
     <label>Tipo de vehículo y color<input id="fVeh" value="${esc(d.vehiculo)}" placeholder="Ej. Bicicleta roja"></label>
     <label>Placa (obligatoria)<input id="fPlaca" value="${esc((d.placa || "").toUpperCase())}" style="text-transform:uppercase"></label>
@@ -58,7 +75,7 @@ function fichaTicket(t, editable) {
   return html + histTable(h);
 }
 
-let gSel = "", filtro = "todos";
+let gSel = "", filtro = "todos", fTipo = "todos";
 function render() {
   const acc = accesos(), now = Date.now();
   const tDentro = tk().filter(dentro).length, bDentro = db.bicis.filter(b => b.sal === null);
@@ -68,7 +85,7 @@ function render() {
   acc.forEach(a => { if (isBici(db.drivers[a.t].vehiculo)) { s.add("t:" + a.t); ent++; if (a.sal !== null) sal++; } });
   $("cBici").innerHTML = `<div class="l">Ciclistas que han entrado (total acumulado)</div><div class="n" id="nBici">${s.size}</div><div class="d">Entradas: ${ent} · Salidas: ${sal}</div>`;
 
-  const al = [...acc.filter(a => a.sal === null && now - a.ent > LIM).map(a => ({ q: "Ticket " + a.t + (db.drivers[a.t].nombre ? " · " + db.drivers[a.t].nombre : ""), ent: a.ent })),
+  const al = [...acc.filter(a => a.sal === null && now - a.ent > LIM).map(a => ({ q: "Ticket " + a.t + " (" + tipoDe(a.t) + ")" + (db.drivers[a.t].nombre ? " · " + db.drivers[a.t].nombre : ""), ent: a.ent })),
     ...bDentro.filter(b => now - b.ent > LIM).map(b => ({ q: "Ciclista " + b.nombre + " (" + b.color + ")", ent: b.ent }))].sort((x, y) => x.ent - y.ent);
   $("alertas").hidden = !al.length;
   $("alertas").innerHTML = al.length ? `<h2>Alertas: ${al.length} ${al.length === 1 ? "acceso lleva" : "accesos llevan"} más de 24 horas sin salida</h2><div class="tw"><table><tr><th>Ticket / nombre</th><th>Hora de entrada (CDMX)</th><th>Tiempo dentro</th></tr>${al.map(x => `<tr><td>${esc(x.q)}</td><td>${fmt(x.ent)}</td><td><span class="danger">${dur(x.ent, now)}</span></td></tr>`).join("")}</table></div>` : "";
@@ -76,7 +93,9 @@ function render() {
   // buscador global
   const gn = $("gq").value.trim().toLowerCase(), res = [];
   if (gn) {
-    if (/^\d+$/.test(gn)) { const t = norm(gn); if (t && db.drivers[t]) res.push(["t:" + t, "Ticket " + t, db.drivers[t]]); }
+    const gid = parseId(gn);
+    if (gid) { if (db.drivers[gid]) res.push(["t:" + gid, "Ticket " + gid + " (" + tipoDe(gid) + ")", db.drivers[gid]]); }
+    else if (/^\d+$/.test(gn)) ambos(gn).forEach(t => res.push(["t:" + t, "Ticket " + t + " (" + tipoDe(t) + ")", db.drivers[t]]));
     else {
       tk().forEach(t => { const d = db.drivers[t]; if ((d.nombre + " " + d.notas + " " + d.placa).toLowerCase().includes(gn)) res.push(["t:" + t, "Ticket " + t, d]); });
       const seen = new Set(); db.bicis.forEach(b => { const k = bkey(b.nombre, b.color); const n = db.biciNotas[k] || ""; if (!seen.has(k) && (b.nombre + " " + n).toLowerCase().includes(gn)) { seen.add(k); res.push(["b:" + k, "Ciclista", { nombre: b.nombre, vehiculo: "bici " + b.color, notas: n }]); } });
@@ -92,6 +111,8 @@ function render() {
   // registro por ticket
   const t = curTicket();
   $("tEnt").disabled = !t || dentro(t); $("tSal").disabled = !t || !dentro(t);
+  const amb = !t ? ambos($("tq").value) : [];
+  $("tpick").innerHTML = amb.length ? "<p>¿Cuál ticket?</p>" + amb.map(x => `<button class="res" data-pick="${x}">Ticket ${x} · ${tipoDe(x)}${db.drivers[x].nombre ? " · " + esc(db.drivers[x].nombre) : ""}</button>`).join("") : "";
   if (!document.activeElement || !$("tficha").contains(document.activeElement)) $("tficha").innerHTML = t ? fichaTicket(t, true) : "";
   validarPlaca();
 
@@ -100,16 +121,19 @@ function render() {
 
   // lista
   const nReg = tk().filter(t => db.drivers[t].nombre.trim()).length;
+  $("segT").innerHTML = [["todos", "Servicio y cargo"], ["S", "Servicio"], ["C", "Cargo"]].map(([v, l]) => `<button data-ft="${v}" class="${fTipo === v ? "on" : ""}">${l}</button>`).join("");
   $("seg").innerHTML = [["todos", "Todos"], ["dentro", "Dentro (" + tDentro + ")"], ["fuera", "Fuera"], ["sindatos", "Sin datos (" + (tk().length - nReg) + ")"]].map(([v, l]) => `<button data-f="${v}" class="${filtro === v ? "on" : ""}">${l}</button>`).join("");
   const lq = $("lq").value.trim().toLowerCase();
   const lista = tk().filter(t => { const d = db.drivers[t], dn = dentro(t);
+    if (fTipo !== "todos" && !t.endsWith(fTipo)) return false;
     if (filtro === "dentro" && !dn) return false; if (filtro === "fuera" && dn) return false; if (filtro === "sindatos" && d.nombre.trim()) return false;
-    return !lq || (t + " " + d.nombre + " " + d.vehiculo + " " + d.placa + " " + d.puesto + " " + d.notas).toLowerCase().includes(lq); });
-  if (!$("lista").contains(document.activeElement)) $("lista").innerHTML = `<table><tr><th>Ticket</th><th>Nombre del empleado</th><th>Vehículo y color</th><th>Placa</th><th>Puesto o labor</th><th>Estado</th><th>Notas</th></tr>${lista.slice(0, 100).map(t => { const d = db.drivers[t]; return `<tr><td>${t}</td><td>${esc(d.nombre) || "—"}</td><td>${esc(d.vehiculo) || "—"}</td><td>${esc((d.placa || "").toUpperCase()) || "—"}</td><td>${esc(d.puesto) || "—"}</td><td>${estadoHtml(dentro(t))}</td><td>${notaInput("t", t, d.notas)}</td></tr>`; }).join("")}</table><p>Mostrando ${Math.min(lista.length, 100)} de ${lista.length} tickets.</p>`;
+    return !lq || (t + " " + tipoDe(t) + " " + d.nombre + " " + d.vehiculo + " " + d.placa + " " + d.puesto + " " + d.notas).toLowerCase().includes(lq); });
+  if (!$("lista").contains(document.activeElement)) $("lista").innerHTML = `<table><tr><th>Ticket</th><th>Tipo</th><th>Nombre del empleado</th><th>Vehículo y color</th><th>Placa</th><th>Puesto o labor</th><th>Estado</th><th>Notas</th></tr>${lista.slice(0, 100).map(t => { const d = db.drivers[t]; return `<tr><td>${t}</td><td>${tipoDe(t)}</td><td>${esc(d.nombre) || "—"}</td><td>${esc(d.vehiculo) || "—"}</td><td>${esc((d.placa || "").toUpperCase()) || "—"}</td><td>${esc(d.puesto) || "—"}</td><td>${estadoHtml(dentro(t))}</td><td>${notaInput("t", t, d.notas)}</td></tr>`; }).join("")}</table><p>Mostrando ${Math.min(lista.length, 100)} de ${lista.length} tickets.</p>`;
 }
 function curTicket() {
   const q = $("tq").value.trim().toLowerCase(); if (!q) return "";
-  if (/^\d+$/.test(q)) { const t = norm(q); return db.drivers[t] ? t : ""; }
+  const id = parseId(q); if (id) return db.drivers[id] ? id : "";
+  if (/^\d+$/.test(q)) { const a = ambos(q); return a.length === 1 ? a[0] : ""; }
   return q.length >= 2 ? (tk().find(t => db.drivers[t].nombre.toLowerCase().includes(q)) || "") : "";
 }
 function validarPlaca() {
@@ -138,12 +162,14 @@ document.addEventListener("focusout", e => { if (e.target.classList && e.target.
 document.addEventListener("click", e => {
   const el = e.target.closest("button"); if (!el) return;
   if (el.dataset.sel) { gSel = el.dataset.sel; render(); return; }
+  if (el.dataset.ft) { fTipo = el.dataset.ft; render(); return; }
+  if (el.dataset.pick) { $("tq").value = el.dataset.pick; msg("tmsg", ""); $("tficha").innerHTML = ""; render(); return; }
   if (el.dataset.f) { filtro = el.dataset.f; render(); return; }
   const t = curTicket();
   switch (el.id) {
     case "tEnt": case "tSal": {
       const tipo = el.id === "tEnt" ? "ENTRADA" : "SALIDA";
-      if (!t) return msg("tmsg", "Escribe un ticket del padrón o un nombre registrado.");
+      if (!t) return msg("tmsg", ambos($("tq").value).length ? "Elige si es servicio (S) o cargo (C)." : "Escribe un ticket del padrón (p. ej. 010S o 010C) o un nombre registrado.");
       if (tipo === "ENTRADA" && dentro(t)) return msg("tmsg", "El ticket " + t + " ya está dentro: registra su salida primero.");
       if (tipo === "SALIDA" && !dentro(t)) return msg("tmsg", "El ticket " + t + " no tiene una entrada abierta.");
       const ts = Date.now(); db.movs.push({ t, tipo, ts }); $("tficha").innerHTML = ""; save();
@@ -152,7 +178,7 @@ document.addEventListener("click", e => {
     case "fSave": {
       const tt = el.dataset.t, placa = $("fPlaca").value.trim().toUpperCase();
       if (!placa) { validarPlaca(); return; }
-      const nt = norm($("fTicket").value);
+      const nt = parseId($("fTicket").value + $("fTipo").value);
       if (!nt) return msg("tmsg", "Número de ticket inválido.");
       if (nt !== tt && db.drivers[nt]) return msg("tmsg", "El ticket " + nt + " ya existe en el padrón.");
       const datos = Object.assign({}, db.drivers[tt], { nombre: $("fNombre").value.trim(), vehiculo: $("fVeh").value.trim(), placa, puesto: $("fPuesto").value.trim() });
@@ -167,7 +193,7 @@ document.addEventListener("click", e => {
       $("tq").value = ""; $("tficha").innerHTML = ""; save(); msg("tmsg", "Ticket " + tt + " borrado del padrón."); break;
     }
     case "aAdd": {
-      const nt = norm($("aTicket").value), placa = $("aPlaca").value.trim().toUpperCase();
+      const nt = parseId($("aTicket").value + $("aTipo").value), placa = $("aPlaca").value.trim().toUpperCase();
       if (!nt) return msg("amsg", "Escribe un número de ticket válido.");
       if (db.drivers[nt]) return msg("amsg", "El ticket " + nt + " ya existe; búscalo para editarlo.");
       if (!placa) return msg("amsg", "La placa es obligatoria");
@@ -184,8 +210,8 @@ document.addEventListener("click", e => {
       break;
     }
     case "imp": importar($("csvIn").value); break;
-    case "expC": download("conductores.csv", ["ticket,nombre,vehiculo_color,placa,puesto,notas", ...tk().map(t => { const d = db.drivers[t]; return [t, d.nombre, d.vehiculo, (d.placa || "").toUpperCase(), d.puesto, d.notas].map(csvCell).join(","); })]); break;
-    case "expA": download("accesos.csv", ["ticket,nombre,hora_entrada_cdmx,hora_salida_cdmx,duracion", ...accesos().map(a => [a.t, db.drivers[a.t].nombre, fmt(a.ent), a.sal !== null ? fmt(a.sal) : "", a.sal !== null ? dur(a.ent, a.sal) : "En curso"].map(csvCell).join(","))]); break;
+    case "expC": download("conductores.csv", ["ticket,tipo,nombre,vehiculo_color,placa,puesto,notas", ...tk().map(t => { const d = db.drivers[t]; return [t, tipoDe(t), d.nombre, d.vehiculo, (d.placa || "").toUpperCase(), d.puesto, d.notas].map(csvCell).join(","); })]); break;
+    case "expA": download("accesos.csv", ["ticket,tipo,nombre,hora_entrada_cdmx,hora_salida_cdmx,duracion", ...accesos().map(a => [a.t, tipoDe(a.t), (db.drivers[a.t] || {}).nombre || "", fmt(a.ent), a.sal !== null ? fmt(a.sal) : "", a.sal !== null ? dur(a.ent, a.sal) : "En curso"].map(csvCell).join(","))]); break;
     case "expB": download("ciclistas.csv", ["nombre,color_bicicleta,hora_entrada_cdmx,hora_salida_cdmx,duracion,notas", ...db.bicis.map(b => [b.nombre, b.color, fmt(b.ent), b.sal !== null ? fmt(b.sal) : "", b.sal !== null ? dur(b.ent, b.sal) : "En curso", db.biciNotas[bkey(b.nombre, b.color)] || ""].map(csvCell).join(","))]); break;
   }
 });
@@ -199,7 +225,9 @@ function parseLine(line) { const out = []; let cur = "", q = false;
   out.push(cur); return out.map(x => x.trim()); }
 function importar(text) {
   let ok = 0, sinPlaca = 0;
-  text.split(/\r?\n/).forEach(l => { if (!l.trim()) return; const c = parseLine(l); const t = norm(c[0] || ""); if (!t) return;
+  text.split(/\r?\n/).forEach(l => { if (!l.trim()) return; let c = parseLine(l); const tp = /^(s|c|servicio|cargo)$/i.test(c[1] || "") ? (c[1][0].toUpperCase()) : "";
+    if (tp) c = [c[0]].concat(c.slice(2));
+    const raw = (c[0] || "").trim(); const t = parseId(raw) || (/^\d+$/.test(raw) ? parseId(raw + (tp || "S")) : ""); if (!t) return;
     const placa = (c[3] || "").toUpperCase(); if (!placa) { sinPlaca++; return; }
     db.drivers[t] = { nombre: c[1] || "", vehiculo: c[2] || "", placa, puesto: c[4] || "", notas: c[5] || "" }; ok++; });
   save(); $("csvIn").value = "";
@@ -232,10 +260,10 @@ pintaTitulo();
 function exportXlsx() {
   if (typeof XLSX === "undefined") return alert("No se pudo cargar el generador de Excel.");
   const wb = XLSX.utils.book_new(), add = (rows, name) => XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), name);
-  add([["Ticket", "Nombre", "Placa", "Vehículo y color", "Puesto o labor", "Notas", "Estado"],
-    ...tk().map(t => { const d = db.drivers[t]; return [t, d.nombre, (d.placa || "").toUpperCase(), d.vehiculo, d.puesto, d.notas || "", dentro(t) ? "Dentro" : "Fuera"]; })], "Padrón");
-  add([["Ticket", "Nombre", "Placa", "Hora de entrada (CDMX)", "Hora de salida (CDMX)", "Duración"],
-    ...accesos().map(a => { const d = db.drivers[a.t] || {}; return [a.t, d.nombre || "", (d.placa || "").toUpperCase(), fmt(a.ent), a.sal !== null ? fmt(a.sal) : "", a.sal !== null ? dur(a.ent, a.sal) : "En curso"]; })], "Accesos");
+  add([["Ticket", "Tipo", "Nombre", "Placa", "Vehículo y color", "Puesto o labor", "Notas", "Estado"],
+    ...tk().map(t => { const d = db.drivers[t]; return [t, tipoDe(t), d.nombre, (d.placa || "").toUpperCase(), d.vehiculo, d.puesto, d.notas || "", dentro(t) ? "Dentro" : "Fuera"]; })], "Padrón");
+  add([["Ticket", "Tipo", "Nombre", "Placa", "Hora de entrada (CDMX)", "Hora de salida (CDMX)", "Duración"],
+    ...accesos().map(a => { const d = db.drivers[a.t] || {}; return [a.t, tipoDe(a.t), d.nombre || "", (d.placa || "").toUpperCase(), fmt(a.ent), a.sal !== null ? fmt(a.sal) : "", a.sal !== null ? dur(a.ent, a.sal) : "En curso"]; })], "Accesos");
   const seen = new Map(); db.bicis.forEach(b => { const k = bkey(b.nombre, b.color); if (!seen.has(k)) seen.set(k, [b.nombre, b.color, db.biciNotas[k] || ""]); });
   add([["Nombre", "Color de la bicicleta", "Notas"], ...seen.values()], "Ciclistas");
   add([["Nombre", "Color", "Hora de entrada (CDMX)", "Hora de salida (CDMX)", "Duración"],
